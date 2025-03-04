@@ -1,39 +1,27 @@
-import { StatusBar } from "expo-status-bar";
-import { Platform, StyleSheet } from "react-native";
-
-import EditScreenInfo from "@/components/EditScreenInfo";
-import { Text, View } from "@/components/Themed";
+import { StatusBar } from 'expo-status-bar';
+import { Platform } from 'react-native';
+import { Text, View } from '@/components/Themed';
+import HabitForm from '@/components/HabitForm';
+import { storage } from '@/lib/storage';
+import { router } from 'expo-router';
 
 export default function ModalScreen() {
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Modal</Text>
-      <View
-        style={styles.separator}
-        lightColor="#eee"
-        darkColor="rgba(255,255,255,0.1)"
-      />
-      <EditScreenInfo path="app/modal.tsx" />
+  const handleSubmit = async (habitData: any) => {
+    const newHabit = {
+      ...habitData,
+      id: Math.random().toString(36).substring(7),
+      completed: false,
+      createdAt: new Date().toISOString(),
+    };
+    
+    await storage.addHabit(newHabit);
+    router.back();
+  };
 
-      {/* Use a light status bar on iOS to account for the black space above the modal */}
-      <StatusBar style={Platform.OS === "ios" ? "light" : "auto"} />
+  return (
+    <View style={{ flex: 1, padding: 20 }}>
+      <StatusBar style={Platform.OS === 'ios' ? 'light' : 'auto'} />
+      <HabitForm onSubmit={handleSubmit} onCancel={() => router.back()} />
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: "bold",
-  },
-  separator: {
-    marginVertical: 30,
-    height: 1,
-    width: "80%",
-  },
-});

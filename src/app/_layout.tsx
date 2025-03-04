@@ -1,5 +1,6 @@
 import "expo-dev-client";
 import "../../global.css";
+import 'react-native-gesture-handler';
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import {
   DarkTheme,

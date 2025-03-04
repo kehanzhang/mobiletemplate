@@ -1,0 +1,791 @@
+diff --git a/package.json b/package.json
+index 905e8f0..26b58d5 100644
+--- a/package.json
++++ b/package.json
+@@ -17,6 +17,8 @@
+     "preset": "jest-expo"
+   },
+   "dependencies": {
++    "react-native-gesture-handler": "^2.14.0",
++    "@react-native-async-storage/async-storage": "^1.21.0",
+     "@expo/vector-icons": "^14.0.2",
+     "@react-navigation/native": "^7.0.14",
+     "babel-plugin-inline-import": "^3.0.0",
+diff --git a/src/app/(tabs)/_layout.tsx b/src/app/(tabs)/_layout.tsx
+index 20051b8..50e2ded 100644
+--- a/src/app/(tabs)/_layout.tsx
++++ b/src/app/(tabs)/_layout.tsx
+@@ -30,14 +30,14 @@ export default function TabLayout() {
+       <Tabs.Screen
+         name="index"
+         options={{
+-          title: "Tab One",
+-          tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
++          title: "Habits",
++          tabBarIcon: ({ color }) => <TabBarIcon name="list" color={color} />,
+           headerRight: () => (
+             <Link href="/modal" asChild>
+               <Pressable>
+                 {({ pressed }) => (
+                   <FontAwesome
+-                    name="info-circle"
++                    name="plus"
+                     size={25}
+                     color={Colors[colorScheme ?? "light"].text}
+                     style={{ marginRight: 15, opacity: pressed ? 0.5 : 1 }}
+@@ -51,22 +51,8 @@ export default function TabLayout() {
+       <Tabs.Screen
+         name="two"
+         options={{
+-          title: "Tab Two",
+-          tabBarIcon: ({ color }) => <TabBarIcon name="code" color={color} />,
+-          headerRight: () => (
+-            <Link href="/sheet" asChild>
+-              <Pressable>
+-                {({ pressed }) => (
+-                  <FontAwesome
+-                    name="info-circle"
+-                    size={25}
+-                    color={Colors[colorScheme ?? "light"].text}
+-                    style={{ marginRight: 15, opacity: pressed ? 0.5 : 1 }}
+-                  />
+-                )}
+-              </Pressable>
+-            </Link>
+-          ),
++          title: "History",
++          tabBarIcon: ({ color }) => <TabBarIcon name="history" color={color} />,
+         }}
+       />
+     </Tabs>
+diff --git a/src/app/(tabs)/index.tsx b/src/app/(tabs)/index.tsx
+index d39e034..a254815 100644
+--- a/src/app/(tabs)/index.tsx
++++ b/src/app/(tabs)/index.tsx
+@@ -1,18 +1,68 @@
+-import { StyleSheet } from "react-native";
++import React, { useEffect, useState } from 'react';
++import { StyleSheet, FlatList, TouchableOpacity } from 'react-native';
++import { Text, View } from '@/components/Themed';
++import { Habit } from '@/lib/types/habit';
++import { storage } from '@/lib/storage';
++import HabitItem from '@/components/HabitItem';
++import { Link } from 'expo-router';
+ 
+-import EditScreenInfo from "@/components/EditScreenInfo";
+-import { Text, View } from "@/components/Themed";
++export default function HabitsScreen() {
++  const [habits, setHabits] = useState<Habit[]>([]);
++
++  useEffect(() => {
++    loadHabits();
++  }, []);
++
++  const loadHabits = async () => {
++    const loadedHabits = await storage.getHabits();
++    setHabits(loadedHabits.filter(h => !h.completed));
++  };
++
++  const handleComplete = async (id: string) => {
++    await storage.completeHabit(id);
++    const habit = habits.find(h => h.id === id);
++    if (habit) {
++      const updatedHabit = {
++        ...habit,
++        completed: true,
++        completedAt: new Date().toISOString(),
++      };
++      await storage.updateHabit(updatedHabit);
++      await loadHabits();
++    }
++  };
++
++  const handleDelete = async (id: string) => {
++    await storage.deleteHabit(id);
++    await loadHabits();
++  };
++
++  if (habits.length === 0) {
++    return (
++      <View style={styles.emptyContainer}>
++        <Text style={styles.emptyText}>No habits yet!</Text>
++        <Link href="/modal" asChild>
++          <TouchableOpacity style={styles.createButton}>
++            <Text style={styles.createButtonText}>Create your first habit</Text>
++          </TouchableOpacity>
++        </Link>
++      </View>
++    );
++  }
+ 
+-export default function TabOneScreen() {
+   return (
+     <View style={styles.container}>
+-      <Text style={styles.title}>Tab One</Text>
+-      <View
+-        style={styles.separator}
+-        lightColor="#eee"
+-        darkColor="rgba(255,255,255,0.1)"
++      <FlatList
++        data={habits}
++        keyExtractor={(item) => item.id}
++        renderItem={({ item }) => (
++          <HabitItem
++            habit={item}
++            onComplete={handleComplete}
++            onDelete={handleDelete}
++          />
++        )}
+       />
+-      <EditScreenInfo path="app/(tabs)/index.tsx" />
+     </View>
+   );
+ }
+@@ -20,16 +70,27 @@ export default function TabOneScreen() {
+ const styles = StyleSheet.create({
+   container: {
+     flex: 1,
+-    alignItems: "center",
+-    justifyContent: "center",
+   },
+-  title: {
+-    fontSize: 20,
+-    fontWeight: "bold",
++  emptyContainer: {
++    flex: 1,
++    alignItems: 'center',
++    justifyContent: 'center',
++    padding: 20,
++  },
++  emptyText: {
++    fontSize: 18,
++    marginBottom: 20,
++    textAlign: 'center',
++  },
++  createButton: {
++    backgroundColor: '#007AFF',
++    paddingHorizontal: 20,
++    paddingVertical: 10,
++    borderRadius: 8,
+   },
+-  separator: {
+-    marginVertical: 30,
+-    height: 1,
+-    width: "80%",
++  createButtonText: {
++    color: '#fff',
++    fontSize: 16,
++    fontWeight: 'bold',
+   },
+ });
+diff --git a/src/app/(tabs)/two.tsx b/src/app/(tabs)/two.tsx
+index 8030ccd..7a27116 100644
+--- a/src/app/(tabs)/two.tsx
++++ b/src/app/(tabs)/two.tsx
+@@ -1,18 +1,65 @@
+-import { StyleSheet } from "react-native";
++import React, { useEffect, useState } from 'react';
++import { StyleSheet, FlatList } from 'react-native';
++import { Text, View } from '@/components/Themed';
++import { Habit } from '@/lib/types/habit';
++import { storage } from '@/lib/storage';
+ 
+-import EditScreenInfo from "@/components/EditScreenInfo";
+-import { Text, View } from "@/components/Themed";
++interface CompletedHabit extends Habit {
++  completedAt: string;
++}
++
++export default function HistoryScreen() {
++  const [completedHabits, setCompletedHabits] = useState<CompletedHabit[]>([]);
++
++  useEffect(() => {
++    loadCompletedHabits();
++  }, []);
++
++  const loadCompletedHabits = async () => {
++    const habits = await storage.getHabits();
++    const completed = habits
++      .filter((h): h is CompletedHabit => h.completed && h.completedAt !== undefined)
++      .sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
++    setCompletedHabits(completed);
++  };
++
++  const formatDate = (dateStr: string) => {
++    const date = new Date(dateStr);
++    return date.toLocaleDateString('en-US', {
++      weekday: 'long',
++      year: 'numeric',
++      month: 'long',
++      day: 'numeric',
++    });
++  };
++
++  if (completedHabits.length === 0) {
++    return (
++      <View style={styles.emptyContainer}>
++        <Text style={styles.emptyText}>No completed habits yet!</Text>
++        <Text style={styles.subText}>Complete some habits to see them here.</Text>
++      </View>
++    );
++  }
+ 
+-export default function TabTwoScreen() {
+   return (
+     <View style={styles.container}>
+-      <Text style={styles.title}>Tab Two</Text>
+-      <View
+-        style={styles.separator}
+-        lightColor="#eee"
+-        darkColor="rgba(255,255,255,0.1)"
++      <FlatList
++        data={completedHabits}
++        keyExtractor={(item) => `${item.id}-${item.completedAt}`}
++        renderItem={({ item }) => (
++          <View style={styles.habitItem}>
++            <Text style={styles.emoji}>{item.emoji}</Text>
++            <View style={styles.habitInfo}>
++              <Text style={styles.title}>{item.title}</Text>
++              <Text style={styles.description}>{item.description}</Text>
++              <Text style={styles.completedDate}>
++                Completed on {formatDate(item.completedAt)}
++              </Text>
++            </View>
++          </View>
++        )}
+       />
+-      <EditScreenInfo path="app/(tabs)/two.tsx" />
+     </View>
+   );
+ }
+@@ -20,16 +67,48 @@ export default function TabTwoScreen() {
+ const styles = StyleSheet.create({
+   container: {
+     flex: 1,
+-    alignItems: "center",
+-    justifyContent: "center",
++  },
++  emptyContainer: {
++    flex: 1,
++    alignItems: 'center',
++    justifyContent: 'center',
++    padding: 20,
++  },
++  emptyText: {
++    fontSize: 18,
++    marginBottom: 10,
++    textAlign: 'center',
++  },
++  subText: {
++    fontSize: 14,
++    color: '#666',
++    textAlign: 'center',
++  },
++  habitItem: {
++    flexDirection: 'row',
++    padding: 15,
++    borderBottomWidth: 1,
++    borderBottomColor: '#eee',
++  },
++  emoji: {
++    fontSize: 30,
++    marginRight: 15,
++  },
++  habitInfo: {
++    flex: 1,
+   },
+   title: {
+-    fontSize: 20,
+-    fontWeight: "bold",
++    fontSize: 18,
++    fontWeight: 'bold',
++  },
++  description: {
++    fontSize: 14,
++    color: '#666',
++    marginTop: 4,
+   },
+-  separator: {
+-    marginVertical: 30,
+-    height: 1,
+-    width: "80%",
++  completedDate: {
++    fontSize: 12,
++    color: '#999',
++    marginTop: 4,
+   },
+ });
+diff --git a/src/app/_layout.tsx b/src/app/_layout.tsx
+index 1fcdac9..6596491 100644
+--- a/src/app/_layout.tsx
++++ b/src/app/_layout.tsx
+@@ -1,5 +1,6 @@
+ import "expo-dev-client";
+ import "../../global.css";
++import 'react-native-gesture-handler';
+ import FontAwesome from "@expo/vector-icons/FontAwesome";
+ import {
+   DarkTheme,
+diff --git a/src/app/modal.tsx b/src/app/modal.tsx
+index 683f5f8..69eac57 100644
+--- a/src/app/modal.tsx
++++ b/src/app/modal.tsx
+@@ -1,39 +1,27 @@
+-import { StatusBar } from "expo-status-bar";
+-import { Platform, StyleSheet } from "react-native";
+-
+-import EditScreenInfo from "@/components/EditScreenInfo";
+-import { Text, View } from "@/components/Themed";
++import { StatusBar } from 'expo-status-bar';
++import { Platform } from 'react-native';
++import { Text, View } from '@/components/Themed';
++import HabitForm from '@/components/HabitForm';
++import { storage } from '@/lib/storage';
++import { router } from 'expo-router';
+ 
+ export default function ModalScreen() {
+-  return (
+-    <View style={styles.container}>
+-      <Text style={styles.title}>Modal</Text>
+-      <View
+-        style={styles.separator}
+-        lightColor="#eee"
+-        darkColor="rgba(255,255,255,0.1)"
+-      />
+-      <EditScreenInfo path="app/modal.tsx" />
++  const handleSubmit = async (habitData: any) => {
++    const newHabit = {
++      ...habitData,
++      id: Math.random().toString(36).substring(7),
++      completed: false,
++      createdAt: new Date().toISOString(),
++    };
++    
++    await storage.addHabit(newHabit);
++    router.back();
++  };
+ 
+-      {/* Use a light status bar on iOS to account for the black space above the modal */}
+-      <StatusBar style={Platform.OS === "ios" ? "light" : "auto"} />
++  return (
++    <View style={{ flex: 1, padding: 20 }}>
++      <StatusBar style={Platform.OS === 'ios' ? 'light' : 'auto'} />
++      <HabitForm onSubmit={handleSubmit} onCancel={() => router.back()} />
+     </View>
+   );
+ }
+-
+-const styles = StyleSheet.create({
+-  container: {
+-    flex: 1,
+-    alignItems: "center",
+-    justifyContent: "center",
+-  },
+-  title: {
+-    fontSize: 20,
+-    fontWeight: "bold",
+-  },
+-  separator: {
+-    marginVertical: 30,
+-    height: 1,
+-    width: "80%",
+-  },
+-});
+diff --git a/src/components/HabitForm.tsx b/src/components/HabitForm.tsx
+new file mode 100644
+index 0000000..3515ce1
+--- /dev/null
++++ b/src/components/HabitForm.tsx
+@@ -0,0 +1,169 @@
++import React, { useState } from 'react';
++import { StyleSheet, TextInput, TouchableOpacity } from 'react-native';
++import { Text, View } from './Themed';
++import { FrequencyType, Habit } from '@/lib/types/habit';
++
++interface HabitFormProps {
++  onSubmit: (habit: Omit<Habit, 'id' | 'completed' | 'createdAt'>) => void;
++  onCancel: () => void;
++}
++
++export default function HabitForm({ onSubmit, onCancel }: HabitFormProps) {
++  const [title, setTitle] = useState('');
++  const [description, setDescription] = useState('');
++  const [emoji, setEmoji] = useState('');
++  const [frequency, setFrequency] = useState({
++    type: 'daily' as FrequencyType,
++    times: 1,
++  });
++
++  const handleSubmit = () => {
++    if (!title.trim()) return;
++
++    onSubmit({
++      title: title.trim(),
++      description: description.trim(),
++      emoji: emoji.trim() || '📝',
++      frequency,
++    });
++  };
++
++  return (
++    <View style={styles.container}>
++      <Text style={styles.title}>New Habit</Text>
++      
++      <TextInput
++        style={styles.input}
++        placeholder="Title"
++        value={title}
++        onChangeText={setTitle}
++      />
++      
++      <TextInput
++        style={styles.input}
++        placeholder="Description"
++        value={description}
++        onChangeText={setDescription}
++        multiline
++      />
++      
++      <TextInput
++        style={styles.input}
++        placeholder="Emoji"
++        value={emoji}
++        onChangeText={setEmoji}
++      />
++      
++      <View style={styles.frequencyContainer}>
++        <TextInput
++          style={styles.numberInput}
++          placeholder="Times"
++          value={frequency.times.toString()}
++          onChangeText={(text) => setFrequency({ ...frequency, times: parseInt(text) || 1 })}
++          keyboardType="numeric"
++        />
++        
++        <View style={styles.buttonGroup}>
++          {(['daily', 'weekly', 'monthly'] as FrequencyType[]).map((type) => (
++            <TouchableOpacity
++              key={type}
++              style={[
++                styles.frequencyButton,
++                frequency.type === type && styles.frequencyButtonActive,
++              ]}
++              onPress={() => setFrequency({ ...frequency, type })}
++            >
++              <Text style={frequency.type === type ? styles.buttonTextActive : styles.buttonText}>
++                {type}
++              </Text>
++            </TouchableOpacity>
++          ))}
++        </View>
++      </View>
++      
++      <View style={styles.actions}>
++        <TouchableOpacity style={styles.button} onPress={onCancel}>
++          <Text style={styles.buttonText}>Cancel</Text>
++        </TouchableOpacity>
++        <TouchableOpacity
++          style={[styles.button, styles.submitButton]}
++          onPress={handleSubmit}
++        >
++          <Text style={styles.buttonTextActive}>Create Habit</Text>
++        </TouchableOpacity>
++      </View>
++    </View>
++  );
++}
++
++const styles = StyleSheet.create({
++  container: {
++    padding: 20,
++  },
++  title: {
++    fontSize: 24,
++    fontWeight: 'bold',
++    marginBottom: 20,
++  },
++  input: {
++    borderWidth: 1,
++    borderColor: '#ddd',
++    borderRadius: 8,
++    padding: 12,
++    marginBottom: 16,
++    fontSize: 16,
++  },
++  frequencyContainer: {
++    marginBottom: 20,
++  },
++  numberInput: {
++    borderWidth: 1,
++    borderColor: '#ddd',
++    borderRadius: 8,
++    padding: 12,
++    marginBottom: 8,
++    fontSize: 16,
++    width: '30%',
++  },
++  buttonGroup: {
++    flexDirection: 'row',
++    justifyContent: 'space-between',
++  },
++  frequencyButton: {
++    flex: 1,
++    padding: 10,
++    borderWidth: 1,
++    borderColor: '#ddd',
++    borderRadius: 8,
++    marginHorizontal: 4,
++    alignItems: 'center',
++  },
++  frequencyButtonActive: {
++    backgroundColor: '#007AFF',
++    borderColor: '#007AFF',
++  },
++  actions: {
++    flexDirection: 'row',
++    justifyContent: 'space-between',
++    marginTop: 20,
++  },
++  button: {
++    flex: 1,
++    padding: 15,
++    borderRadius: 8,
++    marginHorizontal: 5,
++    alignItems: 'center',
++    backgroundColor: '#f0f0f0',
++  },
++  submitButton: {
++    backgroundColor: '#007AFF',
++  },
++  buttonText: {
++    fontSize: 16,
++    color: '#666',
++  },
++  buttonTextActive: {
++    fontSize: 16,
++    color: '#fff',
++  },
++});
+\ No newline at end of file
+diff --git a/src/components/HabitItem.tsx b/src/components/HabitItem.tsx
+new file mode 100644
+index 0000000..ae89d41
+--- /dev/null
++++ b/src/components/HabitItem.tsx
+@@ -0,0 +1,101 @@
++import React from 'react';
++import { StyleSheet, TouchableOpacity, Animated } from 'react-native';
++import { Swipeable } from 'react-native-gesture-handler';
++import { Text, View } from './Themed';
++import { Habit } from '@/lib/types/habit';
++
++interface HabitItemProps {
++  habit: Habit;
++  onComplete: (id: string) => void;
++  onDelete: (id: string) => void;
++}
++
++export default function HabitItem({ habit, onComplete, onDelete }: HabitItemProps) {
++  const renderRightActions = (
++    progress: Animated.AnimatedInterpolation<number>,
++    dragX: Animated.AnimatedInterpolation<number>
++  ) => {
++    const scale = dragX.interpolate({
++      inputRange: [-100, 0],
++      outputRange: [1, 0],
++      extrapolate: 'clamp',
++    });
++
++    return (
++      <View style={styles.rightActions}>
++        <Animated.View style={[styles.actionButton, { transform: [{ scale }] }]}>
++          <TouchableOpacity onPress={() => onDelete(habit.id)}>
++            <Text style={styles.actionText}>Delete</Text>
++          </TouchableOpacity>
++        </Animated.View>
++        <Animated.View style={[styles.actionButton, { transform: [{ scale }] }]}>
++          <TouchableOpacity onPress={() => onComplete(habit.id)}>
++            <Text style={styles.actionText}>Complete</Text>
++          </TouchableOpacity>
++        </Animated.View>
++      </View>
++    );
++  };
++
++  return (
++    <Swipeable renderRightActions={renderRightActions}>
++      <View style={styles.container}>
++        <Text style={styles.emoji}>{habit.emoji}</Text>
++        <View style={styles.content}>
++          <Text style={styles.title}>{habit.title}</Text>
++          <Text style={styles.description}>{habit.description}</Text>
++          <Text style={styles.frequency}>
++            {habit.frequency.times}x {habit.frequency.type}
++          </Text>
++        </View>
++      </View>
++    </Swipeable>
++  );
++}
++
++const styles = StyleSheet.create({
++  container: {
++    flexDirection: 'row',
++    padding: 15,
++    alignItems: 'center',
++    borderBottomWidth: 1,
++    borderBottomColor: '#eee',
++  },
++  emoji: {
++    fontSize: 30,
++    marginRight: 15,
++  },
++  content: {
++    flex: 1,
++  },
++  title: {
++    fontSize: 18,
++    fontWeight: 'bold',
++  },
++  description: {
++    fontSize: 14,
++    color: '#666',
++    marginTop: 4,
++  },
++  frequency: {
++    fontSize: 12,
++    color: '#999',
++    marginTop: 4,
++  },
++  rightActions: {
++    flexDirection: 'row',
++    alignItems: 'center',
++  },
++  actionButton: {
++    backgroundColor: '#ff4444',
++    justifyContent: 'center',
++    alignItems: 'center',
++    width: 80,
++    height: '100%',
++  },
++  actionText: {
++    color: 'white',
++    fontWeight: 'bold',
++    padding: 20,
++  },
++});
+\ No newline at end of file
+diff --git a/src/lib/storage.ts b/src/lib/storage.ts
+new file mode 100644
+index 0000000..ca2c626
+--- /dev/null
++++ b/src/lib/storage.ts
+@@ -0,0 +1,79 @@
++import AsyncStorage from '@react-native-async-storage/async-storage';
++import { Habit, HabitCompletion } from './types/habit';
++
++const HABITS_KEY = '@habits';
++const COMPLETIONS_KEY = '@habit_completions';
++
++export const storage = {
++  async getHabits(): Promise<Habit[]> {
++    try {
++      const data = await AsyncStorage.getItem(HABITS_KEY);
++      return data ? JSON.parse(data) : [];
++    } catch (error) {
++      console.error('Error getting habits:', error);
++      return [];
++    }
++  },
++
++  async saveHabits(habits: Habit[]): Promise<void> {
++    try {
++      await AsyncStorage.setItem(HABITS_KEY, JSON.stringify(habits));
++    } catch (error) {
++      console.error('Error saving habits:', error);
++    }
++  },
++
++  async getCompletions(): Promise<HabitCompletion[]> {
++    try {
++      const data = await AsyncStorage.getItem(COMPLETIONS_KEY);
++      return data ? JSON.parse(data) : [];
++    } catch (error) {
++      console.error('Error getting completions:', error);
++      return [];
++    }
++  },
++
++  async saveCompletions(completions: HabitCompletion[]): Promise<void> {
++    try {
++      await AsyncStorage.setItem(COMPLETIONS_KEY, JSON.stringify(completions));
++    } catch (error) {
++      console.error('Error saving completions:', error);
++    }
++  },
++
++  async addHabit(habit: Habit): Promise<void> {
++    const habits = await this.getHabits();
++    habits.push(habit);
++    await this.saveHabits(habits);
++  },
++
++  async updateHabit(updatedHabit: Habit): Promise<void> {
++    const habits = await this.getHabits();
++    const index = habits.findIndex(h => h.id === updatedHabit.id);
++    if (index !== -1) {
++      habits[index] = updatedHabit;
++      await this.saveHabits(habits);
++    }
++  },
++
++  async deleteHabit(habitId: string): Promise<void> {
++    const habits = await this.getHabits();
++    const filtered = habits.filter(h => h.id !== habitId);
++    await this.saveHabits(filtered);
++  },
++
++  async completeHabit(habitId: string): Promise<void> {
++    const habits = await this.getHabits();
++    const habit = habits.find(h => h.id === habitId);
++    if (habit) {
++      const completion: HabitCompletion = {
++        id: Math.random().toString(36).substring(7),
++        habitId,
++        completedAt: new Date().toISOString(),
++      };
++      const completions = await this.getCompletions();
++      completions.push(completion);
++      await this.saveCompletions(completions);
++    }
++  }
++};
+\ No newline at end of file
+diff --git a/src/lib/types/habit.ts b/src/lib/types/habit.ts
+new file mode 100644
+index 0000000..eea09e7
+--- /dev/null
++++ b/src/lib/types/habit.ts
+@@ -0,0 +1,21 @@
++export type FrequencyType = 'daily' | 'weekly' | 'monthly';
++
++export interface Habit {
++  id: string;
++  title: string;
++  description: string;
++  emoji: string;
++  frequency: {
++    type: FrequencyType;
++    times: number;
++  };
++  completed: boolean;
++  createdAt: string;
++  completedAt?: string;
++}
++
++export interface HabitCompletion {
++  id: string;
++  habitId: string;
++  completedAt: string;
++}
+\ No newline at end of file
