@@ -1,0 +1,61 @@
+diff --git a/src/components/HabitItem.tsx b/src/components/HabitItem.tsx
+index ae89d41..5d2484a 100644
+--- a/src/components/HabitItem.tsx
++++ b/src/components/HabitItem.tsx
+@@ -3,6 +3,7 @@ import { StyleSheet, TouchableOpacity, Animated } from 'react-native';
+ import { Swipeable } from 'react-native-gesture-handler';
+ import { Text, View } from './Themed';
+ import { Habit } from '@/lib/types/habit';
++import { AntDesign } from '@expo/vector-icons';
+ 
+ interface HabitItemProps {
+   habit: Habit;
+@@ -23,13 +24,15 @@ export default function HabitItem({ habit, onComplete, onDelete }: HabitItemProp
+ 
+     return (
+       <View style={styles.rightActions}>
+-        <Animated.View style={[styles.actionButton, { transform: [{ scale }] }]}>
+-          <TouchableOpacity onPress={() => onDelete(habit.id)}>
++        <Animated.View style={[styles.actionButton, styles.deleteButton, { transform: [{ scale }] }]}>
++          <TouchableOpacity onPress={() => onDelete(habit.id)} style={styles.actionContent}>
++            <AntDesign name="delete" size={20} color="white" />
+             <Text style={styles.actionText}>Delete</Text>
+           </TouchableOpacity>
+         </Animated.View>
+-        <Animated.View style={[styles.actionButton, { transform: [{ scale }] }]}>
+-          <TouchableOpacity onPress={() => onComplete(habit.id)}>
++        <Animated.View style={[styles.actionButton, styles.completeButton, { transform: [{ scale }] }]}>
++          <TouchableOpacity onPress={() => onComplete(habit.id)} style={styles.actionContent}>
++            <AntDesign name="check" size={20} color="white" />
+             <Text style={styles.actionText}>Complete</Text>
+           </TouchableOpacity>
+         </Animated.View>
+@@ -87,15 +90,25 @@ const styles = StyleSheet.create({
+     alignItems: 'center',
+   },
+   actionButton: {
+-    backgroundColor: '#ff4444',
+     justifyContent: 'center',
+     alignItems: 'center',
+     width: 80,
+     height: '100%',
+   },
++  deleteButton: {
++    backgroundColor: '#ff4444',
++  },
++  completeButton: {
++    backgroundColor: '#4CAF50',
++  },
++  actionContent: {
++    alignItems: 'center',
++    justifyContent: 'center',
++  },
+   actionText: {
+     color: 'white',
+     fontWeight: 'bold',
+-    padding: 20,
++    fontSize: 12,
++    marginTop: 4,
+   },
+ });
+\ No newline at end of file

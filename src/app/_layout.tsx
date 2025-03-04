@@ -1,6 +1,7 @@
 import "expo-dev-client";
 import "../../global.css";
 import 'react-native-gesture-handler';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import {
   DarkTheme,
@@ -57,22 +58,24 @@ function RootLayoutNav() {
   const colorScheme = useColorScheme();
 
   return (
-    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-      <MigrationProvider>
-        <Stack>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="modal" options={{ presentation: "modal" }} />
-          <Stack.Screen
-            name="sheet"
-            options={{
-              presentation: "formSheet",
-              sheetCornerRadius: 20,
-              sheetGrabberVisible: true,
-              sheetAllowedDetents: [0.3, 1.0],
-            }}
-          />
-        </Stack>
-      </MigrationProvider>
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+        <MigrationProvider>
+          <Stack>
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+            <Stack.Screen
+              name="sheet"
+              options={{
+                presentation: "formSheet",
+                sheetCornerRadius: 20,
+                sheetGrabberVisible: true,
+                sheetAllowedDetents: [0.3, 1.0],
+              }}
+            />
+          </Stack>
+        </MigrationProvider>
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }
